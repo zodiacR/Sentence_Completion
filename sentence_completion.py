@@ -4,6 +4,7 @@
 #Version  : 1.0
 #Filename : sentence_completion.py
 import numpy as np
+from random import sample
 import theano
 import theano.tensor as T
 from OneHot import OneHot
@@ -16,7 +17,9 @@ class SentenceCompletion(object):
     Read raw data from 
     """
     def __init__(self, n_in, n_hidden, n_out,
-                 learning_rate=0.01, L2_reg=0.00, n_epochs=100):
+                 learning_rate=0.01,
+                 learning_rate_decay=1,
+                 L2_reg=0.00, n_epochs=100):
         """
         Initialise basic variables
         """
@@ -69,8 +72,8 @@ class SentenceCompletion(object):
 
         return shared_x, T.cast(shared_y, "int32")
 
-    def fit(self, X_train, Y_train, X_test=None, Y_test=None,
-            validation=100):
+    def fit(self, raw_data, X_train, Y_train, X_test=None, Y_test=None,
+            validation=10000):
         """
         Fit model
         Pass in X_test, Y_test to compute test error and report during
@@ -146,7 +149,7 @@ class SentenceCompletion(object):
                     print fmt % (epoch, idx+1, n_train,
                                  this_train_loss)
 
-def Completion(n_epochs=250):
+def Completion(n_epochs=100):
     """
     load raw data from a file and train them, finally
     complete incomplete sentences
@@ -161,23 +164,47 @@ def Completion(n_epochs=250):
     n_hidden = n_in
     n_out = n_in
 
+    specimen = 20000
+
     # training data
     train_set = []
     target_set = []
+    raw_data = []
 
     with open(raw_path) as fin:
-        for i, line in enumerate(fin):
+        for line in enumerate(fin):
             line = line.strip().split()
+            raw_data.append(line)
+
+        # sample some examples from raw data
+        samples = sample(raw_data, specimen)
+
+        for line in samples:
             #vectors = onehot.Word2Vec(line)
             train_set.append(onehot.Word2Vec(line))
             target_set.append(onehot.Word2Index(line))
-            if i >= 1000:
-                break
     #train_set = np.asarray(train_set)
+
+    # test data
+    test_set = []
+    test_actual = []
+    test_path = "data/ptb.tst"
+    with open(test_path) as fin:
+        for line in fin:
+            line = line.strip().split()
+            test_set.append(onehot.Word2Vec(line))
+            test_actual.append(onehot.Word2Index(line))
     
+    # construct a model for training
     model = SentenceCompletion(n_in, n_hidden, n_out,
+                            learning_rate_decay=0.999,
+                            L2_reg=0.03,                            
                             n_epochs=n_epochs)
-    model.fit(train_set, target_set, validation=10000) 
+    # train and test data
+    model.fit(raw_data,
+              train_set, target_set,
+              test_set, test_actual,
+              validation=specimen) 
 
 if __name__ == "__main__":
     Completion()
