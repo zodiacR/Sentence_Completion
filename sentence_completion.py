@@ -5,6 +5,7 @@
 #Filename : sentence_completion.py
 import numpy as np
 from random import sample
+import sys
 import theano
 import theano.tensor as T
 from OneHot import OneHot
@@ -72,7 +73,7 @@ class SentenceCompletion(object):
 
         return shared_x, T.cast(shared_y, "int32")
 
-    def fit(self, raw_data, X_train, Y_train, X_test=None, Y_test=None,
+    def fit(self, samples, X_train, Y_train, X_test=None, Y_test=None,
             validation=10000):
         """
         Fit model
@@ -101,6 +102,17 @@ class SentenceCompletion(object):
                                                   self.y: train_set_y
                                                   },
                                               mode=mode)
+        # test config
+        n_test = len(X_test)
+        test_set_x = T.matrix()
+        test_set_y = T.vector(dtype="int64")
+        compute_test_error = theano.function(inputs=[test_set_x, test_set_y],
+                                             outputs=self.rnn.loss(self.y),
+                                             givens={
+                                                self.x: test_set_x,
+                                                self.y: test_set_y
+                                                 },
+                                             mode=mode)
 
         # compute gradient of cost with respect to theta = (W, W_in,
         # W_out, h0, bh, by)
@@ -132,6 +144,8 @@ class SentenceCompletion(object):
             epoch += 1
 
             for idx in xrange(n_train):
+                print "shape", X_train[idx].shape
+                print "shape", Y_train[idx].shape
                 example_cost = train_model(X_train[idx],
                                            Y_train[idx],
                                            self.learning_rate)
@@ -142,14 +156,21 @@ class SentenceCompletion(object):
 
                 if iter % validation == 0:
                     train_losses = [compute_train_error(X_train[i], Y_train[i])
-                                    for i in xrange(n_train)]
+                                    for i in sample(xrange(n_train), samples)]
                     this_train_loss = np.mean(train_losses)
 
-                    fmt = "epoch %i, seq %i/%i, train loss %f"
-                    print fmt % (epoch, idx+1, n_train,
-                                 this_train_loss)
+                    test_losses = [compute_test_error(X_test[i], Y_test[i])
+                                    for i in xrange(n_test)]
+                    this_test_loss = np.mean(test_losses)
 
-def Completion(n_epochs=100):
+                    fmt = "epoch %i, seq %i/%i, train loss %f, test loss %f, lr: %f"
+                    print fmt % (epoch, idx+1, n_train,
+                                 this_train_loss, this_test_loss,
+                                 self.learning_rate)
+
+            self.learning *= self.learning_rate_decay
+
+def Completion(n_hidden, n_epochs=100,lamb=0.01):
     """
     load raw data from a file and train them, finally
     complete incomplete sentences
@@ -161,25 +182,18 @@ def Completion(n_epochs=100):
                          per_path)
     # units of layers
     n_in = onehot.size
-    n_hidden = n_in
+    #n_hidden = n_hidden
     n_out = n_in
-
-    specimen = 20000
 
     # training data
     train_set = []
     target_set = []
-    raw_data = []
 
     with open(raw_path) as fin:
-        for line in enumerate(fin):
+        for i, line in enumerate(fin):
+            if i > 10:
+                break
             line = line.strip().split()
-            raw_data.append(line)
-
-        # sample some examples from raw data
-        samples = sample(raw_data, specimen)
-
-        for line in samples:
             #vectors = onehot.Word2Vec(line)
             train_set.append(onehot.Word2Vec(line))
             target_set.append(onehot.Word2Index(line))
@@ -198,14 +212,15 @@ def Completion(n_epochs=100):
     # construct a model for training
     model = SentenceCompletion(n_in, n_hidden, n_out,
                             learning_rate_decay=0.999,
-                            L2_reg=0.03,                            
+                            L2_reg=lamb,
                             n_epochs=n_epochs)
     # train and test data
-    model.fit(raw_data,
+    model.fit(4,
               train_set, target_set,
               test_set, test_actual,
-              validation=specimen) 
+              validation=len(train_set)) 
 
 if __name__ == "__main__":
-    Completion()
+    n_hidden, lamb = sys.argv[1:]
+    Completion(n_hidden, lamb=lamb)
 
