@@ -166,7 +166,7 @@ class SentenceCompletion(object):
                                  this_train_loss, this_test_loss,
                                  self.learning_rate)
 
-            self.learning *= self.learning_rate_decay
+            self.learning_rate *= self.learning_rate_decay
 
 def Completion(n_hidden, n_epochs=100,lamb=0.01):
     """
