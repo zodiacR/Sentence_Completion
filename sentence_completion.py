@@ -144,8 +144,6 @@ class SentenceCompletion(object):
             epoch += 1
 
             for idx in xrange(n_train):
-                print "shape", X_train[idx].shape
-                print "shape", Y_train[idx].shape
                 example_cost = train_model(X_train[idx],
                                            Y_train[idx],
                                            self.learning_rate)

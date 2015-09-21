@@ -35,7 +35,7 @@ class RNN(object):
         self.W_in = theano.shared(value=W_in_init, name="W_in")
 
         # hidden to output layer weights
-        W_out_init = np.asarray(np.random.uniform(size=(n_out, n_hidden),
+        W_out_init = np.asarray(np.random.uniform(size=(n_hidden, n_out),
                                                  low=-.01, high=.01),
                                                  dtype=theano.config.floatX)
         self.W_out = theano.shared(value=W_out_init, name="W_out")
