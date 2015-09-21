@@ -28,6 +28,7 @@ class SentenceCompletion(object):
         self.n_hidden = int(n_hidden)
         self.n_out = int(n_out)
         self.learning_rate = float(learning_rate)
+        self.learning_rate_decay = float(learning_rate_decay)
         self.L2_reg = float(L2_reg)
         self.epochs = int(n_epochs)
 
