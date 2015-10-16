@@ -3,13 +3,16 @@
 #Author   : Zodiac
 #Version  : 1.0
 #Filename : sentence_completion.py
+import logging
 import numpy as np
+from optparse import OptionParser
 from random import sample
-import sys
+#import sys
 import theano
 import theano.tensor as T
-from OneHot import OneHot
+from Word2Vec import Word2Vec
 from RNN import RNN
+
 
 mode = theano.Mode(linker="cvm")
 
@@ -41,7 +44,8 @@ class SentenceCompletion(object):
         # input sentence
         self.x = T.matrix(name="x", dtype=theano.config.floatX)
         #target
-        self.y = T.vector(name="y", dtype="int64")
+        #self.y = T.matrix(name="y", dtype=theano.config.floatX)
+        self.y = T.vector(name="y", dtype="int32")
 
         # initial hidden state of the RNN
         self.h0 = T.vector()
@@ -53,13 +57,13 @@ class SentenceCompletion(object):
                       n_hidden=self.n_hidden,
                       n_out=self.n_out)
 
-        # probabilities
-        self.predict_proba = theano.function(inputs=[self.x,],
-                                             outputs=self.rnn.p_y_given_x,
-                                             mode=mode)
+        ## probabilities
+        #self.predict_proba = theano.function(inputs=[self.x,],
+                                             #outputs=self.rnn.p_y_given_x,
+                                             #mode=mode)
         # index with the highest probability
         self.predict = theano.function(inputs=[self.x,],
-                                       outputs=self.rnn.y_out,
+                                       outputs=self.rnn.y_out[-1][-5:],
                                        mode=mode)
 
     def shared_dataset(self, data_xy):
@@ -74,7 +78,7 @@ class SentenceCompletion(object):
 
         return shared_x, T.cast(shared_y, "int32")
 
-    def fit(self, samples, X_train, Y_train, X_test=None, Y_test=None,
+    def fit(self, word2vec, vocab,samples, X_train, Y_train, X_test=None, Y_test=None,
             validation=10000):
         """
         Fit model
@@ -91,7 +95,8 @@ class SentenceCompletion(object):
         #####################
         #index = T.lscalar("index")
         train_set_x = T.matrix()
-        train_set_y = T.vector(dtype="int64")
+        #train_set_y = T.matrix(dtype=theano.config.floatX)
+        train_set_y = T.vector(dtype="int32")
 
         l_r = T.scalar("l_r", dtype=theano.config.floatX)
         cost = self.rnn.loss(self.y) + self.L2_reg * self.rnn.L2_sqr
@@ -106,7 +111,7 @@ class SentenceCompletion(object):
         # test config
         n_test = len(X_test)
         test_set_x = T.matrix()
-        test_set_y = T.vector(dtype="int64")
+        test_set_y = T.vector(dtype="int32")
         compute_test_error = theano.function(inputs=[test_set_x, test_set_y],
                                              outputs=self.rnn.loss(self.y),
                                              givens={
@@ -145,9 +150,8 @@ class SentenceCompletion(object):
             epoch += 1
 
             for idx in xrange(n_train):
-                example_cost = train_model(X_train[idx],
-                                           Y_train[idx],
-                                           self.learning_rate)
+                train_model(X_train[idx], Y_train[idx],
+                            self.learning_rate)
 
 
                 # validate learnt weights on training set
@@ -163,26 +167,62 @@ class SentenceCompletion(object):
                     this_test_loss = np.mean(test_losses)
 
                     fmt = "epoch %i, seq %i/%i, train loss %f, test loss %f, lr: %f"
-                    print fmt % (epoch, idx+1, n_train,
-                                 this_train_loss, this_test_loss,
-                                 self.learning_rate)
+                    logging.debug(fmt % (epoch, idx+1, n_train,
+                                         this_train_loss, this_test_loss,
+                                         self.learning_rate))
+
 
             self.learning_rate *= self.learning_rate_decay
 
-def Completion(n_hidden, n_epochs=100,lamb=0.01):
+            if epoch % 10 == 0:
+                filename = "rnn-100_%e-%d.npz" % (self.L2_reg ,epoch)
+
+                np.savez(filename,
+                         W=self.rnn.W.get_value(),
+                         W_in=self.rnn.W_in.get_value(),
+                         W_out=self.rnn.W_out.get_value(),
+                         h0=self.rnn.h0.get_value(),
+                         bh=self.rnn.bh.get_value(),
+                         by=self.rnn.by.get_value())
+
+                # pred data
+                pred_path = "data/ptb.dev"
+                with open(pred_path) as fin:
+                    for i, line in enumerate(fin):
+                        if i > 10:
+                            break
+                        line = line.strip().split()
+                        # pred_set.append(word2vec.Lookup(line[:-1]))
+
+                        result = self.predict(word2vec.Lookup(line[:-1]))
+
+                        #loss = 1
+                        #output = ""
+
+                        #for word in word2vec.vocabulary:
+                            #diff = ((result-word2vec.dict[word])**2).mean()
+                            #if diff < loss:
+                                #output = word
+                                #loss = diff
+
+                        logging.debug(" ".join(line[:-1]))
+                        for j in result:
+                            logging.debug(vocab[j])
+
+def Completion(n_hidden, n_epochs=100,lamb=1e-8):
     """
     load raw data from a file and train them, finally
     complete incomplete sentences
     """
     # initialise onehot class
     raw_path = "data/ptb.trn"
-    per_path = "data/vocabulary.txt"
-    onehot = OneHot(raw_path,
+    per_path = "data/vectors.txt"
+    word2vec = Word2Vec(raw_path,
                          per_path)
     # units of layers
-    n_in = onehot.size
-    #n_hidden = n_hidden
-    n_out = n_in
+    n_in = word2vec.size
+    n_hidden = 100
+    n_out = word2vec.output_size
 
     # training data
     train_set = []
@@ -190,13 +230,13 @@ def Completion(n_hidden, n_epochs=100,lamb=0.01):
 
     with open(raw_path) as fin:
         for i, line in enumerate(fin):
-            if i > 10:
-                break
+            #if i > 10:
+                #break
+            #line = [word.lower() for word in line.strip().split()]
             line = line.strip().split()
             #vectors = onehot.Word2Vec(line)
-            train_set.append(onehot.Word2Vec(line))
-            target_set.append(onehot.Word2Index(line))
-    #train_set = np.asarray(train_set)
+            train_set.append(word2vec.Lookup(line[:-1]))
+            target_set.append(word2vec.Word2Index(line[1:]))
 
     # test data
     test_set = []
@@ -205,8 +245,9 @@ def Completion(n_hidden, n_epochs=100,lamb=0.01):
     with open(test_path) as fin:
         for line in fin:
             line = line.strip().split()
-            test_set.append(onehot.Word2Vec(line))
-            test_actual.append(onehot.Word2Index(line))
+            #line = [word.lower() for word in line.strip().split()]
+            test_set.append(word2vec.Lookup(line[:-1]))
+            test_actual.append(word2vec.Word2Index(line[1:]))
     
     # construct a model for training
     model = SentenceCompletion(n_in, n_hidden, n_out,
@@ -214,12 +255,28 @@ def Completion(n_hidden, n_epochs=100,lamb=0.01):
                             L2_reg=lamb,
                             n_epochs=n_epochs)
     # train and test data
-    model.fit(4,
+    model.fit(word2vec, word2vec.vocabulary, 4000,
               train_set, target_set,
               test_set, test_actual,
               validation=len(train_set)) 
 
 if __name__ == "__main__":
-    n_hidden, lamb = sys.argv[1:]
-    Completion(n_hidden, lamb=lamb)
+    # parse command line options and arguments
+    parser = OptionParser()
+    parser.add_option("--hidden",
+                      action="store",
+                      dest="n_hidden",
+                      type="int",
+                      default=100)
+    parser.add_option("-l", "--lamb",
+                      action="store",
+                      dest="lamb",
+                      type="float",
+                      default=1e-7)
+    options, args = parser.parse_args()
+    logging.basicConfig(filename="prediction_100_%e.txt" % options.lamb,
+                        level=logging.DEBUG)
+
+    # pass basic settings
+    Completion(options.n_hidden, lamb=options.lamb, n_epochs=100)
 

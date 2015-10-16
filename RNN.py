@@ -91,9 +91,13 @@ class RNN(object):
         self.p_y_given_x = self.softmax(self.y_pred)
 
         # compute prediction as class whose probability is maximal
-        self.y_out = T.argmax(self.p_y_given_x, axis=-1)
+        self.y_out = T.argsort(self.p_y_given_x, axis=-1)
         self.loss = lambda y: self.nll_multiclass(y)
+        #self.loss = lambda y: self.mse(y)
 
+    def mse(self, y):
+        # error between output and target
+        return T.mean((self.y_pred-y) ** 2)
 
     def nll_multiclass(self, y):
         # negative log likelihood based on multiclass cross entropy error
