@@ -20,6 +20,7 @@ class RNN(object):
         self.input = input
         self.activation = T.tanh
         self.softmax = T.nnet.softmax
+        #saved = np.load("./rnn-100_1.000000e-07-70.npz")
 
         # recurrent weights as a shared variable
         # hidden to hidden weights
@@ -27,30 +28,36 @@ class RNN(object):
                                                  low=-.01, high=.01),
                                                  dtype=theano.config.floatX)
         self.W = theano.shared(value=W_init, name="W")
+        #self.W = theano.shared(value=saved["W"], name="W")
 
         # input to hidden layer weights
         W_in_init = np.asarray(np.random.uniform(size=(n_in, n_hidden),
                                                  low=-.01, high=.01),
                                                  dtype=theano.config.floatX)
         self.W_in = theano.shared(value=W_in_init, name="W_in")
+        #self.W_in = theano.shared(value=saved["W_in"], name="W_in")
 
         # hidden to output layer weights
         W_out_init = np.asarray(np.random.uniform(size=(n_hidden, n_out),
                                                  low=-.01, high=.01),
                                                  dtype=theano.config.floatX)
         self.W_out = theano.shared(value=W_out_init, name="W_out")
+        #self.W_out = theano.shared(value=saved["W_out"], name="W_out")
 
         # initial hidden layer
         h0_init = np.zeros(n_hidden, dtype=theano.config.floatX)
         self.h0 = theano.shared(value=h0_init, name="h0")
+        #self.h0 = theano.shared(value=saved["h0"], name="h0")
 
         # bias of hidden layers
         bh_init = np.zeros(n_hidden, dtype=theano.config.floatX)
         self.bh = theano.shared(value=bh_init, name="bh")
+        #self.bh = theano.shared(value=saved["bh"], name="bh")
 
         # bias of output layer
         by_init = np.zeros(n_out, dtype=theano.config.floatX)
         self.by = theano.shared(value=by_init, name="by")
+        #self.by = theano.shared(value=saved["by"], name="by")
 
 
         self.params = [self.W, self.W_in, self.W_out,
@@ -94,10 +101,6 @@ class RNN(object):
         self.y_out = T.argsort(self.p_y_given_x, axis=-1)
         self.loss = lambda y: self.nll_multiclass(y)
         #self.loss = lambda y: self.mse(y)
-
-    def mse(self, y):
-        # error between output and target
-        return T.mean((self.y_pred-y) ** 2)
 
     def nll_multiclass(self, y):
         # negative log likelihood based on multiclass cross entropy error

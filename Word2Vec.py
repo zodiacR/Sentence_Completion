@@ -3,6 +3,7 @@
 #Author   : Zodiac
 #Version  : 1.0
 #Filename : Word2Vec.py
+import cPickle as pickle
 import gensim
 import numpy as np
 import theano
@@ -11,7 +12,7 @@ class Word2Vec(object):
     """
     Construct a representation matrix of vocabulary
     """
-    def __init__(self, raw_path, vector_path, size=100):
+    def __init__(self, raw_path, vector_path, level="word", size=100):
         """
         Set basic environments
         """
@@ -21,6 +22,15 @@ class Word2Vec(object):
         self.size = size
 
         self.LoadVoca()
+
+        # load output vocabulary
+        if level == "char":
+            with open("data/char_level/onehot_output.txt") as f:
+                self.vocabulary = pickle.load(f)
+        else:
+            self.vocabulary = self.dict.index2word
+
+        self.output_size = len(self.vocabulary)
 
 
     def LoadVoca(self):
@@ -33,11 +43,8 @@ class Word2Vec(object):
             self.ReadRawData()
             self.Word2Vec()
         else:
-
             self.dict = gensim.models.Word2Vec.load_word2vec_format(self.vector_path,
                                                                     binary=False)
-            self.vocabulary = self.dict.index2word
-            self.output_size = len(self.vocabulary)
 
     def ReadRawData(self):
         """
@@ -51,11 +58,6 @@ class Word2Vec(object):
                 # and split the line into several words
                 line = line.strip().split()
 
-                # to lower case
-                #words = [word.lower() for word in line]
-
-                # record words in vocabulary list
-
                 # append a sentence to sentence list
                 self.sentences.append(line)
 
@@ -68,8 +70,6 @@ class Word2Vec(object):
                                          window=5,
                                          min_count=3,
                                          workers=4)
-        self.vocabulary = self.dict.index2word
-        self.output_size = len(self.vocabulary)
         self.dict.save_word2vec_format(self.vector_path, binary=False)
 
     def Lookup(self, line):
@@ -89,5 +89,3 @@ class Word2Vec(object):
             indices.append(self.vocabulary.index(word))
 
         return np.asarray(indices, dtype="int32")
-
-#word2vector = Word2Vec("./with_unk/ptb.trn", "./with_unk/vectors.txt", 50)

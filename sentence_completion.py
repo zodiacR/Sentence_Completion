@@ -6,12 +6,11 @@
 import logging
 import numpy as np
 from optparse import OptionParser
+from RNN import RNN
 from random import sample
-#import sys
 import theano
 import theano.tensor as T
 from Word2Vec import Word2Vec
-from RNN import RNN
 
 
 mode = theano.Mode(linker="cvm")
@@ -56,27 +55,6 @@ class SentenceCompletion(object):
                       n_in=self.n_in,
                       n_hidden=self.n_hidden,
                       n_out=self.n_out)
-
-        ## probabilities
-        #self.predict_proba = theano.function(inputs=[self.x,],
-                                             #outputs=self.rnn.p_y_given_x,
-                                             #mode=mode)
-        # index with the highest probability
-        self.predict = theano.function(inputs=[self.x,],
-                                       outputs=self.rnn.y_out[-1][-5:],
-                                       mode=mode)
-
-    def shared_dataset(self, data_xy):
-        """
-        Load the dataset into shared variables
-        """
-        data_x, data_y = data_xy
-        shared_x = theano.shared(np.asarray(data_x,
-                                            dtype=theano.config.floatX))
-        shared_y = theano.shared(np.asarray(data_y,
-                                            dtype=theano.config.floatX))
-
-        return shared_x, T.cast(shared_y, "int32")
 
     def fit(self, word2vec, vocab,samples, X_train, Y_train, X_test=None, Y_test=None,
             validation=10000):
@@ -185,44 +163,32 @@ class SentenceCompletion(object):
                          bh=self.rnn.bh.get_value(),
                          by=self.rnn.by.get_value())
 
-                # pred data
-                pred_path = "data/ptb.dev"
-                with open(pred_path) as fin:
-                    for i, line in enumerate(fin):
-                        if i > 10:
-                            break
-                        line = line.strip().split()
-                        # pred_set.append(word2vec.Lookup(line[:-1]))
 
-                        result = self.predict(word2vec.Lookup(line[:-1]))
-
-                        #loss = 1
-                        #output = ""
-
-                        #for word in word2vec.vocabulary:
-                            #diff = ((result-word2vec.dict[word])**2).mean()
-                            #if diff < loss:
-                                #output = word
-                                #loss = diff
-
-                        logging.debug(" ".join(line[:-1]))
-                        for j in result:
-                            logging.debug(vocab[j])
-
-def Completion(n_hidden, n_epochs=100,lamb=1e-8):
+def Completion(n_hidden, level, n_epochs=100,lamb=1e-8):
     """
     load raw data from a file and train them, finally
     complete incomplete sentences
     """
-    # initialise onehot class
-    raw_path = "data/ptb.trn"
-    per_path = "data/vectors.txt"
-    word2vec = Word2Vec(raw_path,
-                         per_path)
+    # initialise word2vec class
+    if level == "word":
+        raw_path = "data/word_level/ptb.trn"
+        per_path = "data/word_level/vectors.txt"
+        test_path = "data/word_level/ptb.tst"
+        word2vec = Word2Vec(raw_path,
+                            per_path,
+                            level)
+    else:
+        raw_path = "data/char_level/ptb.trn"
+        per_path = "data/char_level/vectors.txt"
+        test_path = "data/char_level/ptb.tst"
+        word2vec = Word2Vec(raw_path,
+                            per_path,
+                            level)
     # units of layers
     n_in = word2vec.size
     n_hidden = 100
     n_out = word2vec.output_size
+
 
     # training data
     train_set = []
@@ -230,8 +196,6 @@ def Completion(n_hidden, n_epochs=100,lamb=1e-8):
 
     with open(raw_path) as fin:
         for i, line in enumerate(fin):
-            #if i > 10:
-                #break
             #line = [word.lower() for word in line.strip().split()]
             line = line.strip().split()
             #vectors = onehot.Word2Vec(line)
@@ -241,7 +205,6 @@ def Completion(n_hidden, n_epochs=100,lamb=1e-8):
     # test data
     test_set = []
     test_actual = []
-    test_path = "data/ptb.tst"
     with open(test_path) as fin:
         for line in fin:
             line = line.strip().split()
@@ -260,6 +223,7 @@ def Completion(n_hidden, n_epochs=100,lamb=1e-8):
               test_set, test_actual,
               validation=len(train_set)) 
 
+
 if __name__ == "__main__":
     # parse command line options and arguments
     parser = OptionParser()
@@ -273,10 +237,16 @@ if __name__ == "__main__":
                       dest="lamb",
                       type="float",
                       default=1e-7)
+    parser.add_option("-m", "--method",
+                      action="store",
+                      dest="method",
+                      default="word")
+
     options, args = parser.parse_args()
     logging.basicConfig(filename="prediction_100_%e.txt" % options.lamb,
                         level=logging.DEBUG)
 
     # pass basic settings
-    Completion(options.n_hidden, lamb=options.lamb, n_epochs=100)
+    Completion(options.n_hidden, level=options.method,
+               lamb=options.lamb, n_epochs=100)
 

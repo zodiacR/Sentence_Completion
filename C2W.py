@@ -19,11 +19,10 @@ class C2W(object):
         self.table = list(characters)
         self.size = len(self.table)
 
-    def Lookup(self, word):
+    def Lookup(self, characters):
         """
         Lookup vectors of a sentence
         """
-        characters = [c for c in list(word)]
         vectors  = []
 
         for c in characters:
@@ -34,3 +33,12 @@ class C2W(object):
 
         return np.asarray(vectors)
 
+    def Char2Index(self, characters):
+        """
+        translate words of line to indices
+        """
+        indices = []
+        for char in characters:
+            indices.append(self.table.index(char))
+
+        return np.asarray(indices, dtype="int32")
