@@ -40,7 +40,7 @@ sudo pip install Theano gensim
                                            So I provied well-trained parameters for completion)
 2. Local completion: python prediction_local.py
    - use sentences in prediction/ptb.dev (note: input should be without '\<s\>'.
-     For example, "AMR slid $ UNK ,", not "<s> AMR slid $ UNK ,")
+     For example, "AMR slid $ UNK ,", not "\<s\> AMR slid $ UNK ,")
    - you can also type your own sentences (input should follow format in prediction/ptb.dev)
 3. Online completion: please setup php environment and copy all files
    under prediction/web to php home directory. Then `python prediction.py`.
